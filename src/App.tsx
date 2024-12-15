@@ -2,6 +2,11 @@
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
+import Betting from './Betting'
+import Question from './Question'
+import EndGame from './EndGame'
+import Scoring from './Scoring'
+import PlayerView from './PlayerView'
 import { usePlayersList, useIsHost, useMultiplayerState, isStreamScreen } from "playroomkit";
 
 function Header() {
@@ -20,22 +25,41 @@ function Header() {
   </div>)
 }
 
+function GameStateView({ state }: { state: string }) {
+  switch (state) {
+    case "question":
+      return <Question />
+    case "betting":
+      return <Betting />
+    case "scoring":
+      return <Scoring />
+    case "endGame":
+      return <EndGame />
+  }
+}
+
+
+
 function App() {
   const [count, setCount] = useMultiplayerState("count", 0);
+  const [roundNumber, setRoundNumber] = useMultiplayerState("roundNumber", 1);
+  const [gameState, setGameState] = useMultiplayerState("currentState", 'question');
   const isHost = useIsHost();
-  const players = usePlayersList();
+  // We have four states: "Question" -> Betting -> Scoring -> EndGame/Question
+  if (isStreamScreen()) {
+    return (
+      <>
+      <Header />
+      {gameState} {roundNumber}
+      <GameStateView state={gameState} />
+      count is {count}
+      </>
+    )
+  }
+  
   return (
     <>
-      <Header />
-      <div className="card">
-        <button onClick={() => setCount(count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          {players.length} players are connected
-          {isHost ? " and you are the host" : ""}
-        </p>
-      </div>
+      <PlayerView isHost={isHost} />
     </>
   )
 }
