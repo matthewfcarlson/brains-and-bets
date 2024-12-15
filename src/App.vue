@@ -1,5 +1,15 @@
 <script setup lang="ts">
 import HelloWorld from './components/HelloWorld.vue'
+import { onPlayerJoin, insertCoin, isHost, myPlayer } from "playroomkit";
+
+import { ref, onMounted } from 'vue'
+
+const playerName = ref("")
+
+onMounted(async () => {
+  await insertCoin({gameId: "Uf1hWeocJCssijhDpBWP", "streamMode": true, "matchmaking": true});
+  playerName.value = myPlayer().getProfile().name 
+})
 </script>
 
 <template>
@@ -11,6 +21,7 @@ import HelloWorld from './components/HelloWorld.vue'
       <img src="./assets/vue.svg" class="logo vue" alt="Vue logo" />
     </a>
   </div>
+  {{ playerName }}
   <HelloWorld msg="Vite + Vue" />
 </template>
 
