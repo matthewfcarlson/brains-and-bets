@@ -41,9 +41,9 @@ function GameStateView({ state }: { state: string }) {
 
 
 function App() {
-  const [count, setCount] = useMultiplayerState("count", 0);
-  const [roundNumber, setRoundNumber] = useMultiplayerState("roundNumber", 1);
-  const [gameState, setGameState] = useMultiplayerState("currentState", 'question');
+  const [count, ] = useMultiplayerState("count", 0);
+  const [roundNumber, ] = useMultiplayerState("roundNumber", 1);
+  const [gameState, ] = useMultiplayerState("currentState", 'question');
   const isHost = useIsHost();
   // We have four states: "Question" -> Betting -> Scoring -> EndGame/Question
   if (isStreamScreen()) {
