@@ -16,7 +16,7 @@ const Scoring: React.FC<ScoringProps> = ({ isHost }) => {
         // First advance the question index
         setQuestionIndex(questionIndex + 1);
         // Then advance the game state
-        if (questionIndex >= numQuestions || questionIndex > 1) {
+        if (questionIndex >= numQuestions) {
             // game is over
             setGameState("endGame");
             return;

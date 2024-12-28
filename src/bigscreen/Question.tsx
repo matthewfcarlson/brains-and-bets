@@ -16,7 +16,7 @@ function Question() {
     return (
         <>
             <h1>Question {questionIndex+1}</h1>
-            <h2>{questions[questionIndex]} </h2>
+            <h2>{questions[questionIndex][0]} </h2>
             <h3>Players Answered: {playersThatHaveAnswered.length} out of {nonBigScreenPlayerIds.length}</h3>
         </>
     )

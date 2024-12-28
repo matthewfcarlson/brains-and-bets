@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 
 import { useMultiplayerState } from "playroomkit";
 import { globalStateNames } from "../Engine";
+import questionsDB from '../assets/questions';
 
 interface SetupProps {
     isHost: boolean;
@@ -14,6 +15,7 @@ const SetupHostControls: React.FC = () => {
     const [, setQuestions] = useMultiplayerState(...globalStateNames.questions);
     const [, setGameState] = useMultiplayerState(...globalStateNames.currentState);
     const [gameStarted, setGameStarted] = useState<boolean>(false);
+    const categories = Object.keys(questionsDB);
 
     const handleCategoryChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
         setCategory(event.target.value);
@@ -33,7 +35,14 @@ const SetupHostControls: React.FC = () => {
         // Next we need to select the questions we are going to use based on the category
         // For now, just randomly select it
         setGameStarted(true);
-        setQuestions(["What is the capital of France?", "What is the capital of Germany?", "What is the capital of Italy?", "What is the capital of Spain?", "What is the capital of Portugal?", "What is the capital of the United Kingdom?"]);
+        let categoryQuestions = Object(questionsDB)[category]|| questionsDB.General;
+        let questionArray = [];
+        for (let i = 0; i < numQuestions; i++) {
+            let randomIndex = Math.floor(Math.random() * categoryQuestions.length);
+            questionArray.push(categoryQuestions[randomIndex]);
+        }
+
+        setQuestions(questionArray);
         // Then advance the game state
         setGameState("question");
     };
@@ -47,10 +56,9 @@ const SetupHostControls: React.FC = () => {
         <div>
             <label htmlFor="category">Category:</label>
             <select id="category" value={category} onChange={handleCategoryChange}>
-                <option value="general">General</option>
-                <option value="science">Science</option>
-                <option value="history">History</option>
-                <option value="sports">Sports</option>
+                {categories.map((category) => (
+                    <option key={category} value={category}>{category}</option>
+                ))}
             </select>
             <div>
                 <label htmlFor="questionCount">Question Count:</label>

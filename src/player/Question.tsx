@@ -48,7 +48,7 @@ const Question: React.FC<QuestionProps> = ({ isHost }) => {
 
     return (
         <>
-            <h1>{questions[questionIndex]} </h1>
+            <h1>{questions[questionIndex][0]} </h1>
             <input type="number" onChange={handleAnswerChange} value={localAnswer || 0} disabled={answer != null}/>
             <button onClick={submitAnswer} disabled={answer != null }>Submit Answer</button>
         </>
