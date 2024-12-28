@@ -7,7 +7,7 @@ import { insertCoin } from "playroomkit";
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 const root = createRoot(document.getElementById('root')!)
-insertCoin({ gameId: "Uf1hWeocJCssijhDpBWP", streamMode: true }).then(() => {
+insertCoin({ gameId: "Uf1hWeocJCssijhDpBWP", streamMode: true, maxPlayersPerRoom: 12, reconnectGracePeriod: 10000 }).then(() => {
   root.render(
     <StrictMode>
       <App />
