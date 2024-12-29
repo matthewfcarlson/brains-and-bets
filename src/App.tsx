@@ -7,8 +7,7 @@ import { playerStateNames } from './Engine';
 
 function App() {
   const isHost = useIsHost();
-  const restartGame = async () => {
-    if (!isHost) return;
+  const restartGame = () => {
     // Then advance the game state
     resetPlayersStates([playerStateNames.isBigScreen[0]]);
     resetStates();
