@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-
 import { useMultiplayerState } from "playroomkit";
 import { globalStateNames } from "../Engine";
 import questionsDB from '../assets/questions';
@@ -7,7 +6,6 @@ import questionsDB from '../assets/questions';
 interface SetupProps {
     isHost: boolean;
 }
-
 
 const SetupHostControls: React.FC = () => {
     const [category, setCategory] = useMultiplayerState(...globalStateNames.category);
@@ -28,14 +26,11 @@ const SetupHostControls: React.FC = () => {
     };
 
     const startGame = async () => {
-        // First we need to disable the start game button
         if (gameStarted) {
             return;
         }
-        // Next we need to select the questions we are going to use based on the category
-        // For now, just randomly select it
         setGameStarted(true);
-        let categoryQuestions = Object(questionsDB)[category]|| questionsDB.General;
+        let categoryQuestions = Object(questionsDB)[category] || questionsDB.General;
         let questionArray = [];
         for (let i = 0; i < numQuestions; i++) {
             let randomIndex = Math.floor(Math.random() * categoryQuestions.length);
@@ -43,7 +38,6 @@ const SetupHostControls: React.FC = () => {
         }
 
         setQuestions(questionArray);
-        // Then advance the game state
         setGameState("question");
     };
 
@@ -52,50 +46,55 @@ const SetupHostControls: React.FC = () => {
             setNumQuestions(numQuestions - 1);
         }
     };
+
     return (
-        <div>
-            <label htmlFor="category">Category:</label>
-            <select id="category" value={category} onChange={handleCategoryChange}>
-                {categories.map((category) => (
-                    <option key={category} value={category}>{category}</option>
-                ))}
-            </select>
-            <div>
-                <label htmlFor="questionCount">Question Count:</label>
-                <button onClick={handleDecrement}>-</button>
-                <span>{numQuestions}</span>
-                <button onClick={handleIncrement}>+</button>
+        <div className="container">
+            <div className="form-group">
+                <label htmlFor="category">Category:</label>
+                <select id="category" className="form-control" value={category} onChange={handleCategoryChange}>
+                    {categories.map((category) => (
+                        <option key={category} value={category}>{category}</option>
+                    ))}
+                </select>
             </div>
-            <button className="btn btn-primary btn-lg" onClick={startGame} disabled={gameStarted}>Start Game </button>
+            <div className="form-group">
+                <label htmlFor="questionCount">Question Count:</label>
+                <div className="input-group">
+                    <div className="input-group-prepend">
+                        <button className="btn btn-outline-secondary" onClick={handleDecrement}>-</button>
+                    </div>
+                    <input type="text" className="form-control text-center" value={numQuestions} readOnly />
+                    <div className="input-group-append">
+                        <button className="btn btn-outline-secondary" onClick={handleIncrement}>+</button>
+                    </div>
+                </div>
+            </div>
+            <br/>
+            <button className="btn btn-primary btn-lg" onClick={startGame} disabled={gameStarted}>Start Game</button>
         </div>
-    )
-}
+    );
+};
 
 const SetupPlayerControls: React.FC = () => {
     const [category, ] = useMultiplayerState(...globalStateNames.category);
     const [numQuestions, ] = useMultiplayerState(...globalStateNames.questionCount);
 
     return (
-        <div>
-            <div>
-                <h1>Category</h1>
-                <h2>{category}</h2>
+        <div className="container">
+            <div className="form-group">
+                <label htmlFor="category">Category:</label>
+                <input type="text" className="form-control" value={category} readOnly />
             </div>
-            <div>
-                <h1>Question Count</h1>
-                <h2>{numQuestions}</h2>
+            <div className="form-group">
+                <label htmlFor="questionCount">Question Count:</label>
+                <input type="text" className="form-control" value={numQuestions} readOnly />
             </div>
-        </div>
-    )
-}
-
-const Setup: React.FC<SetupProps> = ({ isHost }) => {
-
-    return (
-        <div>
-            {isHost ? <SetupHostControls /> : <SetupPlayerControls />}
         </div>
     );
+};
+
+const Setup: React.FC<SetupProps> = ({ isHost }) => {
+    return isHost ? <SetupHostControls /> : <SetupPlayerControls />;
 };
 
 export default Setup;

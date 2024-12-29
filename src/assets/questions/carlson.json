@@ -1,7 +1,7 @@
 [
     [
         "What day of the month was Grandpa Bootz born?",
-        "18",
+        18,
         "18th of October 1933"
     ],
     [
@@ -70,5 +70,4 @@
         59922,
         "As of the 2020 census, there were 59,922 people and 23,952 households in the city"
     ]
-
 ]
