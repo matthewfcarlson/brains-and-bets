@@ -12,7 +12,7 @@ export const gameStateNames = {
 type Question = [string, number] | [string, number, string];
 
 export const globalStateNames = {
-    category:["category", "general"] as [string, string],
+    category:["category", "General"] as [string, string],
     questionCount: ["questionCount", 6] as [string, number],
     questions:["questions", []] as [string, Question[]],
     currentQuestionIndex: ["currentQuestionIndex", 0] as [string, number],

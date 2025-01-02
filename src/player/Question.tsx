@@ -48,33 +48,30 @@ const Question: React.FC<QuestionProps> = ({ isHost }) => {
 
     return (
         <div className="container h-100 d-flex flex-column justify-content-center">
-            <div className="row flex-grow-1 align-items-center">
+            <div className="row flex-grow-1 align-items-center text-white">
                 <div className="col-12 text-center">
-                    <h1 className="my-4">{questions[questionIndex][0]}</h1>
+                    <h1 className="fw-bold">{questions[questionIndex][0]}</h1>
                 </div>
             </div>
             <div className="row flex-grow-1 align-items-center">
                 <div className="col-12 text-center">
-                    <div className="form-group">
+                    <div className="form-floating">
                         <input 
-                            type="number" 
-                            className="form-control" 
+                            type={(answer != null) ? "text" : "number" }
+                            id="floatingInput"
+                            className={"form-control" + (answer != null ? " is-valid" : "")}
                             onChange={handleAnswerChange} 
-                            value={localAnswer || ""} 
+                            value={(answer != null) ? "Submitted" : (localAnswer || "")}
                             disabled={answer != null} 
+                            placeholder="Your answer"
                         />
+                        <label htmlFor="floatingInput">Your answer</label>
                     </div>
-                </div>
-            </div>
-            <div className="row flex-grow-1 align-items-center">
-                <div className="col-12 text-center">
-                    <button 
-                        className="btn btn-primary mt-2" 
+                    <div className="d-grid gap-2 mt-3">
+                        <button className="btn btn-primary" type="button"
                         onClick={submitAnswer} 
-                        disabled={answer != null || localAnswer == null}
-                    >
-                        Submit Answer
-                    </button>
+                        disabled={answer != null || localAnswer == null}>Submit Answer</button>
+                    </div>
                 </div>
             </div>
         </div>

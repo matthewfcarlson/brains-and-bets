@@ -1,5 +1,4 @@
 // import { useState } from 'react'
-import './App.css'
 import PlayerView from './player/index'
 import BigScreenView from './bigscreen/index'
 import { isStreamScreen, useIsHost, resetPlayersStates, resetStates } from "playroomkit";
