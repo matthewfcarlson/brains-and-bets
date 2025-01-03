@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
 import { useMultiplayerState } from "playroomkit";
-import { globalStateNames } from "../Engine";
+import { globalStateNames, PlayerState } from "../Engine";
 import questionsDB from '../assets/questions';
 
-interface SetupProps {
+interface SetupSubProps {
+    playerState: PlayerState;
+}
+
+interface SetupProps extends SetupSubProps {
     isHost: boolean;
 }
 
-const SetupHostControls: React.FC = () => {
+const SetupHostControls: React.FC<SetupSubProps> = ({ playerState }) => {
     const [category, setCategory] = useMultiplayerState(...globalStateNames.category);
     const [numQuestions, setNumQuestions] = useMultiplayerState(...globalStateNames.questionCount);
-    const [, setQuestions] = useMultiplayerState(...globalStateNames.questions);
-    const [, setGameState] = useMultiplayerState(...globalStateNames.currentState);
     const [gameStarted, setGameStarted] = useState<boolean>(false);
     const categories = Object.keys(questionsDB);
 
@@ -25,8 +27,10 @@ const SetupHostControls: React.FC = () => {
         }
     };
 
-    const startGame = async () => {
+    const startGame = () => {
+        console.log("Starting game");
         if (gameStarted) {
+            console.log("Game already started");
             return;
         }
         setGameStarted(true);
@@ -37,8 +41,8 @@ const SetupHostControls: React.FC = () => {
             questionArray.push(categoryQuestions[randomIndex]);
         }
 
-        setQuestions(questionArray);
-        setGameState("question");
+        playerState.host?.setQuestions(questionArray);
+        playerState.host?.setGameState("question");
     };
 
     const handleDecrement = () => {
@@ -70,12 +74,12 @@ const SetupHostControls: React.FC = () => {
                 </div>
             </div>
             <br/>
-            <button className="btn btn-primary btn-lg" onClick={startGame} disabled={gameStarted}>Start Game</button>
+            <button className="btn btn-outline-light btn-lg" onClick={startGame} disabled={gameStarted}>Start Game</button>
         </div>
     );
 };
 
-const SetupPlayerControls: React.FC = () => {
+const SetupPlayerControls: React.FC<SetupSubProps> = ({ playerState }) => {
     const [category, ] = useMultiplayerState(...globalStateNames.category);
     const [numQuestions, ] = useMultiplayerState(...globalStateNames.questionCount);
 
@@ -93,8 +97,8 @@ const SetupPlayerControls: React.FC = () => {
     );
 };
 
-const Setup: React.FC<SetupProps> = ({ isHost }) => {
-    return isHost ? <SetupHostControls /> : <SetupPlayerControls />;
+const Setup: React.FC<SetupProps> = ({ isHost, playerState }) => {
+    return isHost ? <SetupHostControls {...{ playerState }} /> : <SetupPlayerControls {...{ playerState }} />;
 };
 
 export default Setup;

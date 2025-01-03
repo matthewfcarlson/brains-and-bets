@@ -1,29 +1,31 @@
 import { useMultiplayerState, usePlayerState, myPlayer, usePlayersState } from "playroomkit";
-import { globalStateNames, playerStateNames } from "../Engine";
+import { globalStateNames, PlayerState, playerStateNames } from "../Engine";
 import React from "react";
+import Logo from "../assets/logo.png";
 
 interface QuestionProps {
     isHost: boolean;
+    playerState: PlayerState;
 }
 
-const Question: React.FC<QuestionProps> = ({ isHost }) => {
+const Question: React.FC<QuestionProps> = ({ isHost, playerState }) => {
     const self = myPlayer();
-    const [questions, ] = useMultiplayerState(...globalStateNames.questions);
-    const [questionIndex, ] = useMultiplayerState(...globalStateNames.currentQuestionIndex);
     const [answer, setAnswer] = usePlayerState(self, ...playerStateNames.answer);
     const [localAnswer, setLocalAnswer] = React.useState<number|null>(answer);
-    const answers = usePlayersState(playerStateNames.answer[0]).filter((x)=>{return x.state != null});
-    const nonBigScreenPlayerIds = usePlayersState(playerStateNames.isBigScreen[0]).filter((x)=>{return x.state === false}).map((x)=>{return x.player.id});
-    const [, setGameState] = useMultiplayerState(...globalStateNames.currentState);
-
+    const answerCount = playerState.answerCount;
+    const nonBigScreenPlayerIds = playerState.playerIds;
+    
     if (isHost) {
-        if (answers.length === nonBigScreenPlayerIds.length) {
+        if (answerCount === nonBigScreenPlayerIds.length) {
             console.log("Everyone has answered");
-            setGameState("betting");
+            playerState.host?.setGameState("betting");
         } else {
-            console.log("Not everyone has answered", answers.length, nonBigScreenPlayerIds.length);
+            console.log("Not everyone has answered", answerCount, nonBigScreenPlayerIds.length);
         }
+
+       
     }
+    console.log(playerState);
 
     const handleAnswerChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const value = event.target.value;
@@ -47,10 +49,11 @@ const Question: React.FC<QuestionProps> = ({ isHost }) => {
     };
 
     return (
-        <div className="container h-100 d-flex flex-column justify-content-center">
+        <div className="container min-vh-100 d-flex flex-column justify-content-center">
             <div className="row flex-grow-1 align-items-center text-white">
                 <div className="col-12 text-center">
-                    <h1 className="fw-bold">{questions[questionIndex][0]}</h1>
+                    <img src={Logo} style={{height:"4rem", width:"4rem"}} alt="Logo" />
+                    <h1 className="fw-bold">{playerState.currentQuestion}</h1>
                 </div>
             </div>
             <div className="row flex-grow-1 align-items-center">
@@ -68,7 +71,7 @@ const Question: React.FC<QuestionProps> = ({ isHost }) => {
                         <label htmlFor="floatingInput">Your answer</label>
                     </div>
                     <div className="d-grid gap-2 mt-3">
-                        <button className="btn btn-primary" type="button"
+                        <button className="btn btn-outline-light" type="button"
                         onClick={submitAnswer} 
                         disabled={answer != null || localAnswer == null}>Submit Answer</button>
                     </div>

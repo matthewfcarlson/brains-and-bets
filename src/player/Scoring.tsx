@@ -1,24 +1,23 @@
 import { useMultiplayerState, usePlayersList } from "playroomkit";
-import { globalStateNames, playerStateNames } from "../Engine";
+import { globalStateNames, PlayerState, playerStateNames } from "../Engine";
 
 interface ScoringProps {
     isHost: boolean;
+    playerState: PlayerState;
 }
 
-const Scoring: React.FC<ScoringProps> = ({ isHost }) => {
-    const [, setGameState] = useMultiplayerState(...globalStateNames.currentState); 
-    const [questionIndex, setQuestionIndex] = useMultiplayerState(...globalStateNames.currentQuestionIndex);
-    const [numQuestions, ] = useMultiplayerState(...globalStateNames.questionCount);
+const Scoring: React.FC<ScoringProps> = ({ isHost, playerState }) => {
+    const questionIndex = playerState.questionIndex;
     const players = usePlayersList();
     const finishScoring = () => {
         if (!isHost) return;
-        console.log(questionIndex, numQuestions);
+        console.log(questionIndex, playerState.numQuestions);
         // First advance the question index
-        setQuestionIndex(questionIndex + 1);
+        playerState.host?.setQuestionIndex(questionIndex + 1);
         // Then advance the game state
-        if (questionIndex >= numQuestions) {
+        if (questionIndex >= playerState.numQuestions) {
             // game is over
-            setGameState("endGame");
+            playerState.host?.setGameState("endGame");
             return;
         }
         // Otherwise increase the question index, reset everyone's answers
@@ -26,7 +25,7 @@ const Scoring: React.FC<ScoringProps> = ({ isHost }) => {
             player.setState(playerStateNames.answer[0], null);
         });
 
-        setGameState("question");
+        playerState.host?.setGameState("question");
     };
     return (
         <>
