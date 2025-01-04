@@ -1,22 +1,26 @@
 // import { useState } from 'react'
-import PlayerView from './player/index'
-import BigScreenView from './bigscreen/index'
-import { isStreamScreen, useIsHost, resetPlayersStates, resetStates } from "playroomkit";
-import { playerStateNames } from './Engine';
+import { isStreamScreen } from 'playroomkit';
+import { GameStateContext, useGameState, useRawState } from "./Engine";
+import {SetupPlayer, SetupBigScreen} from './components/GameSetup';
+import { QuestionBigScreen, QuestionPlayer } from './components/GameQuestion';
+
 
 function App() {
-  const isHost = useIsHost();
-  const restartGame = () => {
-    // Then advance the game state
-    resetPlayersStates([playerStateNames.isBigScreen[0]]);
-    resetStates();
-};
+  const isBigScreen = isStreamScreen();
+  const rawState = useRawState();
+  const gameState = useGameState(rawState);
+  if (isBigScreen !== gameState.isBigScreen || gameState.isBigScreen === null) {
+    gameState.setPlayerIsBigScreen(isBigScreen === true);
+  }
   return (
-    <>
-    {isStreamScreen() ? <BigScreenView /> : <PlayerView />}
-    {isHost ? <div>Host</div> : <span/>}
-    <button onClick={restartGame}>Restart Game</button>
-    </>
+    <GameStateContext.Provider
+      value={gameState}
+    >
+      {isBigScreen ? <SetupBigScreen />: <SetupPlayer /> }
+      {isBigScreen ? <QuestionBigScreen />: <QuestionPlayer /> }
+      <pre>{JSON.stringify(rawState, null, " ")}</pre>
+      <pre>{JSON.stringify(gameState, null, " ")}</pre>
+    </GameStateContext.Provider>
   )
   
 }

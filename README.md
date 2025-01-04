@@ -4,7 +4,8 @@ Heavily based on Wits and Wagers, it uses playroom SDK as the backend for state 
 
 ## TODO:
 
-- Show answers on betting screen
+- Move to a reducer for React + createContext so logic is in one spot
+- Show answers on betting screen with groupings (kmeans)
 - Allow people to make wagers
-- Move logic into engine so it can be generic
+- Award points based on bets
 - Custom lobby as BigScreen doesn't appear correctly as it shows up as a player
