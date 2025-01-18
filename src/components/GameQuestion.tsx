@@ -66,6 +66,10 @@ export const QuestionPlayer: React.FC = () => {
     )
 };
 export const QuestionBigScreen: React.FC = () => {
+    const gameState = useContext(GameStateContext);
+    if (gameState.state !== "question") {
+        return null;
+    }
     return (
         <Fragment>
             <h1>Question Bigscreen </h1>
