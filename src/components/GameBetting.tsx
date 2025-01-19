@@ -1,12 +1,18 @@
 import React, { useState } from 'react';
 import { useContext, Fragment } from 'react';
-import { BettingGameState, GameStateContext, RawAnswerBucket, RawBetPairStates } from "../Engine";
+import { GameStateContext, PlayerBet, RawAnswerBucket, RawBet, RawBetPairStates } from "../Engine";
+
+interface AnswerBucketBet {
+    playerName: string;
+    betAmount: number;
+}
 
 interface AnswerBucket {
     answer: string;
     players: string[];
     bucketIndex: number;
     currentBet: number;
+    bettingPlayers: AnswerBucketBet[];
 }
 
 function GetPayoutValue(bucketIndex: number): string {
@@ -20,7 +26,6 @@ function GetPayoutValue(bucketIndex: number): string {
     if (bucketIndex == 7) return "5:1";
     return "N/A";
 }
-
 
 function RenderAnswerBuckets(answerBucket: AnswerBucket, handleBet: (bucketIndex: number, increase: boolean) => void, canHandleBet: (bucketIndex: number, increase: boolean) => boolean) {
     if (answerBucket.bucketIndex != 0 && answerBucket.players.length == 0) {
@@ -48,15 +53,16 @@ function RenderAnswerBucketsBigScreen(answerBucket: AnswerBucket) {
     }
     return (
         <div className="row flex-grow-1 align-items-center text-white" key={answerBucket.bucketIndex}>
-            <div className="col-8 text-center">
+            <div className="col-12 text-center">
                 <h3 className="fw-bold">{answerBucket.answer}</h3>
                 <div>Pays {GetPayoutValue(answerBucket.bucketIndex)}</div>
+                <div>{answerBucket.bettingPlayers.length} players betting</div>
             </div>
         </div>
     )
 }
 
-function GenerateAnswerBuckets(answerBuckets: RawAnswerBucket[], myBet: RawBetPairStates) {
+function GenerateAnswerBuckets(answerBuckets: RawAnswerBucket[], bets:PlayerBet[], myBet: RawBetPairStates) {
     let allAnswerBuckets: AnswerBucket[] = [];
     let currentBetCounts = [];
     for (let i = 0; i <=7; i++) currentBetCounts.push(0);
@@ -66,11 +72,20 @@ function GenerateAnswerBuckets(answerBuckets: RawAnswerBucket[], myBet: RawBetPa
             currentBetCounts[myBet[1].bucket] = myBet[1].additionalChips + 1;
         }
     }
+    function GetBetsForBucket(bucketIndex: number): AnswerBucketBet[] {
+        return bets.filter((bet) => bet.bet.bucket == bucketIndex).map((bet) => {
+            return {
+                playerName: bet.playerID,
+                betAmount: bet.bet.additionalChips + 1,
+            }
+        })
+    }
     allAnswerBuckets.push({
         answer: "Smaller than all",
         players: [],
         bucketIndex: 0,
         currentBet: currentBetCounts[0],
+        bettingPlayers: GetBetsForBucket(0),
     })
     for (let i = 1; i <= 7; i++) {
         // Go through each answer bucket
@@ -81,6 +96,7 @@ function GenerateAnswerBuckets(answerBuckets: RawAnswerBucket[], myBet: RawBetPa
                 players: answerBucket.players,
                 bucketIndex: i,
                 currentBet: currentBetCounts[i],
+                bettingPlayers: GetBetsForBucket(i),
             })
             continue;
         }
@@ -89,6 +105,7 @@ function GenerateAnswerBuckets(answerBuckets: RawAnswerBucket[], myBet: RawBetPa
             players: [],
             bucketIndex: i,
             currentBet: currentBetCounts[i],
+            bettingPlayers: GetBetsForBucket(i),
         })
     }
 
@@ -101,9 +118,10 @@ export const BettingPlayer: React.FC = () => {
         return null;
     }
 
-    let allAnswerBuckets = GenerateAnswerBuckets(gameState.answerBuckets, gameState.myBet);
+    let allAnswerBuckets = GenerateAnswerBuckets(gameState.answerBuckets, gameState.allBets, gameState.myBet);
 
     const canHandleBet = (bucketIndex: number, increase: boolean) => {
+        if (gameState.myDoneBetting) return false;
         if (increase == false) {
             // Check if this is a bucket we have already bet on
             if (gameState.myBet == null) return false;
@@ -187,6 +205,26 @@ export const BettingPlayer: React.FC = () => {
         }
     }
 
+    const canFinishBetting = () => {
+        if (gameState.myBet == null) {
+            console.log("You must bet on two answers");
+            return false;
+        }
+        if (gameState.myBet[1] == null) {
+            console.log("You must make a second bet");
+            return false;
+        }
+        if (gameState.myDoneBetting) return false;
+        return true;
+    }
+
+    const finishBetting = () => {
+        if (!canFinishBetting()) {
+            return;
+        }
+        gameState.setDoneBetting();
+    };
+
     return (
         <div className="container vh-100 d-flex flex-column justify-content-center">
             <div className="row align-items-center text-white text-center" key="question">
@@ -194,6 +232,9 @@ export const BettingPlayer: React.FC = () => {
                 <div>Bet on two answers that are the closest but not greater than the real answer</div>
             </div>
             { allAnswerBuckets.map(x => RenderAnswerBuckets(x, handleBet, canHandleBet)) }
+            <div>
+                <button className="btn btn-outline-light btn-lg" onClick={finishBetting} disabled={!canFinishBetting()}>Done Betting</button>
+            </div>
             {JSON.stringify(gameState.myBet)}
         </div>
     )
@@ -203,7 +244,7 @@ export const BettingBigScreen: React.FC = () => {
     if (gameState.state !== "betting") {
         return null;
     }
-    let allAnswerBuckets = GenerateAnswerBuckets(gameState.answerBuckets);
+    let allAnswerBuckets = GenerateAnswerBuckets(gameState.answerBuckets, gameState.allBets, null);
     return (
         <div className="container min-vh-100 d-flex flex-column justify-content-center">
             { allAnswerBuckets.map(RenderAnswerBucketsBigScreen) }

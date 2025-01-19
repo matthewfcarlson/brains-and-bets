@@ -16,8 +16,9 @@ export interface RawAnswerBucket {
     players: string[];
 }
 type RawQuestion = [string, number] | [string, number, string];
-type RawBet = {bucket: AllBetBuckets, additionalChips: number};
+export type RawBet = {bucket: AllBetBuckets, additionalChips: number};
 export type RawBetPairStates = [RawBet, null]|[RawBet, RawBet]|null;
+export type PlayerBet = {playerID:string, bet: RawBet};
 
 // Raw state is the raw state tracked by playroomkit
 const globalStateNames = {
@@ -32,6 +33,7 @@ const globalStateNames = {
 const playerStateNames = {
     answer: ["answer", null] as [string, number | null],
     bet: ["bet", null] as [string, RawBetPairStates],
+    doneBetting: ["doneBetting", false] as [string, boolean],
     score: ["score", 0] as [string, number],
     isBigScreen: ["isBigScreenPlayer", false] as [string, boolean],
 }
@@ -50,24 +52,26 @@ export function useRawState() {
     const [answerBuckets, setAnswerBuckets] = useMultiplayerState(...globalStateNames.answerBuckets);
 
     // These are for every player
-    const allAnswers = usePlayersState(playerStateNames.answer[0]).map((x) => { return {player: x.player.id, state: x.state} });
-    const allScores = usePlayersState(playerStateNames.score[0]).map((x) => { return {player: x.player.id, state: x.state} });
-    const allBets = usePlayersState(playerStateNames.bet[0]).map((x) => { return {player: x.player.id, state: x.state} });
-    const allAreBigScreen = usePlayersState(playerStateNames.isBigScreen[0]).map((x) => { return {player: x.player.id, state: x.state} });
+    const allAnswers = usePlayersState(playerStateNames.answer[0]).map((x) => { return {player: x.player.id, state: x.state as typeof playerStateNames.answer[1]} });
+    const allScores = usePlayersState(playerStateNames.score[0]).map((x) => { return {player: x.player.id, state: x.state as typeof playerStateNames.score[1]} });
+    const allBets = usePlayersState(playerStateNames.bet[0]).map((x) => { return {player: x.player.id, state: x.state as typeof playerStateNames.bet[1]} });
+    const allDoneBetting = usePlayersState(playerStateNames.doneBetting[0]).map((x) => { return {player: x.player.id, state: x.state as typeof playerStateNames.doneBetting[1]} });
+    const allAreBigScreen = usePlayersState(playerStateNames.isBigScreen[0]).map((x) => { return {player: x.player.id, state: x.state as typeof playerStateNames.isBigScreen[1]} });
 
     // Per player
     const [playerIsBigScreen, setPlayerIsBigScreen] = usePlayerState(me, ...playerStateNames.isBigScreen);
-    const playerBet = allBets.find((x) => { return x.player === me.id })?.state;
-    const playerAnswer = allAnswers.find((x) => { return x.player === me.id })?.state;
-    const playerScore = allScores.find((x) => { return x.player === me.id })?.state;
+    const playerBet = allBets.find((x) => { return x.player === me.id })?.state || playerStateNames.bet[1];
+    const playerAnswer = allAnswers.find((x) => { return x.player === me.id })?.state || playerStateNames.answer[1];
+    const playerScore = allScores.find((x) => { return x.player === me.id })?.state || playerStateNames.score[1];
+    const playerDoneBetting = allDoneBetting.find((x) => { return x.player === me.id })?.state || playerStateNames.doneBetting[1];
 
     return {
         questions, questionIndex, allAnswers, playerIsBigScreen, gameState, category, numQuestions, answerBuckets,
         // All player values
-        allPlayers, allAreBigScreen, allParticipants: allPlayers.map((x) => { return {id: x.id, name: x.getProfile().name} }), allBets,
+        allPlayers, allAreBigScreen, allParticipants: allPlayers.map((x) => { return {id: x.id, name: x.getProfile().name} }), allBets, allDoneBetting,
         // Player specific values
         playerId: me.id, playerName: profile.name,
-        playerBet, playerAnswer, playerScore,
+        playerBet, playerAnswer, playerScore, playerDoneBetting,
         // every player can set their own- including big screens
         setPlayerIsBigScreen, 
         setPlayerAnswer: (answer: number|null) => { me.setState(playerStateNames.answer[0], answer, true) },
@@ -90,6 +94,9 @@ export function useRawState() {
             }
             me.setState(playerStateNames.bet[0], bet, true) 
             return true;
+        },
+        setPlayerDoneBetting: () => {
+            me.setState(playerStateNames.doneBetting[0], true, true);
         },
         host: (isHost)? { setQuestions, setQuestionsIndex, setGameState, setCategory, setNumQuestions, setAnswerBuckets } : null
     };
@@ -124,8 +131,12 @@ interface BettingGameState {
     questionText: string;
     host: null;
     myBet: RawBetPairStates;
+    doneBettingCount: number;
     myScore: number;
+    allBets: PlayerBet[];
+    setDoneBetting: () => void;
     setMyBet: (bet: RawBetPairStates) => boolean;
+    myDoneBetting: boolean;
 }
 interface ScoringGameState {
     state: "scoring";
@@ -204,6 +215,7 @@ function useInferredState(state: RawState) {
         numQuestions: state.numQuestions,
         questionIndex: state.questionIndex,
         answerCount: state.allAnswers.filter((x) => { return x.state != null }).length,
+        doneAnsweringCount: state.allDoneBetting.filter((x) => { return x.state === true }).length,
         playerIds: state.allAreBigScreen.filter((x) => { return x.state === false }).map((x) => { return x.player }),
     }
 }
@@ -262,12 +274,24 @@ export function useGameState(rawState: RawState): GameState {
 
             }
         case "betting":
+            let allBets: PlayerBet[] = []
+            for (let bet of rawState.allBets) {
+                if (bet.state == null) continue;
+                allBets.push({playerID: bet.player, bet: bet.state[0]});
+                if (bet.state[1] != null) {
+                    allBets.push({playerID: bet.player, bet: bet.state[1]});
+                }
+            }
             return {
                 state: "betting",
                 answerBuckets: rawState.answerBuckets,
                 myBet: rawState.playerBet,
                 questionText: inferredState.currentQuestion,
                 setMyBet: rawState.setPlayerBet,
+                doneBettingCount: inferredState.doneAnsweringCount,
+                setDoneBetting: rawState.setPlayerDoneBetting,
+                allBets,
+                myDoneBetting: rawState.playerDoneBetting,
                 myScore: 0,
                 host: null,
                 ...commonGameState
