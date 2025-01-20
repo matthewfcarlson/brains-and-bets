@@ -1,10 +1,10 @@
-// import { useState } from 'react'
+import { useEffect } from 'react';
 import { isStreamScreen, useIsHost, resetPlayersStates, resetStates } from 'playroomkit';
 import { GameStateContext, tickGameStateHost, useGameState, useRawState } from "./Engine";
 import {SetupPlayer, SetupBigScreen} from './components/GameSetup';
 import { QuestionBigScreen, QuestionPlayer } from './components/GameQuestion';
-import { useEffect } from 'react';
 import { BettingBigScreen, BettingPlayer } from './components/GameBetting';
+import { ScoringBigScreen, ScoringPlayer } from './components/GameScoring';
 
 
 function App() {
@@ -20,7 +20,7 @@ function App() {
   useEffect(() => {
     const interval = setInterval(() => {
       if (!isHost) return; 
-      tickGameStateHost(rawState, gameState);
+      tickGameStateHost(gameState);
     }, 1000);
   
     return () => clearInterval(interval);
@@ -38,6 +38,7 @@ function App() {
       {isBigScreen ? <SetupBigScreen />: <SetupPlayer /> }
       {isBigScreen ? <QuestionBigScreen />: <QuestionPlayer /> }
       {isBigScreen ? <BettingBigScreen />: <BettingPlayer /> }
+      {isBigScreen ? <ScoringBigScreen />: <ScoringPlayer /> }
       <pre>{JSON.stringify(gameState, null, " ")}</pre>
       {/* <pre>{JSON.stringify(rawState, null, " ")}</pre> */}
       <button onClick={() => console.log(rawState)}>Log Raw</button>

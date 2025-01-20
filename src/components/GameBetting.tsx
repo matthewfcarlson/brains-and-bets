@@ -121,7 +121,7 @@ export const BettingPlayer: React.FC = () => {
     let allAnswerBuckets = GenerateAnswerBuckets(gameState.answerBuckets, gameState.allBets, gameState.myBet);
 
     const canHandleBet = (bucketIndex: number, increase: boolean) => {
-        if (gameState.myDoneBetting) return false;
+        if (gameState.myReady) return false;
         if (increase == false) {
             // Check if this is a bucket we have already bet on
             if (gameState.myBet == null) return false;
@@ -214,7 +214,7 @@ export const BettingPlayer: React.FC = () => {
             console.log("You must make a second bet");
             return false;
         }
-        if (gameState.myDoneBetting) return false;
+        if (gameState.myReady) return false;
         return true;
     }
 
@@ -222,8 +222,14 @@ export const BettingPlayer: React.FC = () => {
         if (!canFinishBetting()) {
             return;
         }
-        gameState.setDoneBetting();
+        gameState.setReady();
     };
+
+    const finishBettingButton = (canFinishBetting())? (
+        <div>
+            <button className="btn btn-outline-light btn-lg" onClick={finishBetting}>Done Betting</button>
+        </div>
+    ) : null;
 
     return (
         <div className="container vh-100 d-flex flex-column justify-content-center">
@@ -232,9 +238,7 @@ export const BettingPlayer: React.FC = () => {
                 <div>Bet on two answers that are the closest but not greater than the real answer</div>
             </div>
             { allAnswerBuckets.map(x => RenderAnswerBuckets(x, handleBet, canHandleBet)) }
-            <div>
-                <button className="btn btn-outline-light btn-lg" onClick={finishBetting} disabled={!canFinishBetting()}>Done Betting</button>
-            </div>
+            {finishBettingButton}
             {JSON.stringify(gameState.myBet)}
         </div>
     )
