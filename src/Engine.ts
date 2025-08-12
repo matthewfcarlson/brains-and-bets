@@ -128,6 +128,7 @@ interface QuestionGameState {
     state: "question";
     questionIndex: number;
     questionText: string;
+    numQuestions: number;
     answerCount: number;
     host: QuestionGameHost | null;
     setMyAnswer: (answer: number|null) => void;
@@ -234,7 +235,7 @@ function useInferredState(state: RawState) {
     return {
         gameState: state.gameState,
         currentQuestion: String(state.questions[state.questionIndex]?.at(0)) ?? "",
-        currentQuestionAnswer: String(state.questions[state.questionIndex]?.at(2)) ?? String(state.questions[state.questionIndex]?.at(1)) ?? "",
+        currentQuestionAnswer: String(state.questions[state.questionIndex]?.at(2) ?? state.questions[state.questionIndex]?.at(1) ?? ""),
         numQuestions: state.numQuestions,
         questionIndex: state.questionIndex,
         answerCount: state.allAnswers.filter((x) => { return x.state != null }).length,
@@ -290,6 +291,7 @@ export function useGameState(rawState: RawState): GameState {
                 state: "question",
                 answerCount: inferredState.answerCount,
                 questionIndex: inferredState.questionIndex,
+                numQuestions: inferredState.numQuestions,
                 questionText: inferredState.currentQuestion,
                 myAnswer: rawState.playerAnswer,
                 setMyAnswer: rawState.setPlayerAnswer,
@@ -297,10 +299,15 @@ export function useGameState(rawState: RawState): GameState {
                     allAnswers: rawState.allAnswers,
                     setAnswerBuckets: rawState.host.setAnswerBuckets,
                     advanceToBetting: () => {
-                        // Clear done betting
+                        // Clear ready status
                         rawState.allPlayers.forEach((player) => {
                             // TODO: it would be nice to have typing information on these sorts of access as well
                             player.setState(playerStateNames.ready[0], playerStateNames.ready[1]);
+                        });
+                        // Clear bets
+                        rawState.allPlayers.forEach((player) => {
+                            // TODO: it would be nice to have typing information on these sorts of access as well
+                            player.setState(playerStateNames.bet[0], playerStateNames.bet[1]);
                         });
                         rawState.host?.setGameState("betting");
                     }
@@ -330,6 +337,11 @@ export function useGameState(rawState: RawState): GameState {
                 myScore: 0,
                 host:  (rawState.host)? {
                     advanceToScoring() {
+                        // Clear ready status
+                        rawState.allPlayers.forEach((player) => {
+                            // TODO: it would be nice to have typing information on these sorts of access as well
+                            player.setState(playerStateNames.ready[0], playerStateNames.ready[1]);
+                        });
                         // TODO: calculate scores and update each players scores
                         rawState.host?.setGameState("scoring");
                     },
@@ -344,13 +356,22 @@ export function useGameState(rawState: RawState): GameState {
                 answerBuckets: rawState.answerBuckets,
                 myScore: rawState.playerScore,
                 readyCount: inferredState.doneAnsweringCount,
-                moreQuestionsLeft: inferredState.questionIndex < inferredState.numQuestions,
+                moreQuestionsLeft: inferredState.questionIndex < (inferredState.numQuestions-1),
                 setReady: rawState.setPlayerReady,
                 myReady: rawState.playerReady,
                 host: (rawState.host)? {
                     advanceToNextQuestionOrEndGame() {
                         // TODO: add to scores permentantly?
                         if (inferredState.moreQuestionsLeft) {
+                            // Clear all answers
+                            rawState.allPlayers.forEach((player) => {
+                                player.setState(playerStateNames.answer[0], null);
+                            });
+                            // Clear bets
+                            rawState.allPlayers.forEach((player) => {
+                                // TODO: it would be nice to have typing information on these sorts of access as well
+                                player.setState(playerStateNames.bet[0], playerStateNames.bet[1]);
+                            });
                             // Add to the question index
                             rawState.host?.setQuestionsIndex(rawState.questionIndex + 1);
                             rawState.host?.setGameState("question");
