@@ -11,36 +11,41 @@ commands to submit guesses, place bets, and climb a persistent leaderboard.
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────┐
-│  Raspberry Pi 3B / Docker Container                 │
-│                                                     │
-│  ┌──────────────┐   frames    ┌──────────────────┐  │
-│  │  Game Engine  │──────────▶│  FFmpeg Process   │  │
-│  │  (Node.js)   │  (stdin)   │  h264 → RTMP     │──┼──▶ Twitch / YouTube
-│  └──────┬───────┘            └──────────────────┘  │
-│         │                                           │
-│  ┌──────┴───────┐                                   │
-│  │  Renderer    │  (node-canvas: Cairo-backed)      │
-│  │  720p / 10fps│                                   │
-│  └──────────────┘                                   │
-│         │                                           │
-│  ┌──────┴───────┐                                   │
-│  │  Chat Clients │                                  │
-│  │  tmi.js (Tw)  │◀──── Twitch IRC                 │
-│  │  YT Live API  │◀──── YouTube Chat               │
-│  └──────────────┘                                   │
-└─────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  Raspberry Pi 3B / Docker Container                          │
+│                                                              │
+│  ┌──────────────┐                                            │
+│  │  Game Engine  │  (state machine, timers, player mgmt)     │
+│  └──────┬───────┘                                            │
+│         │ state changes                                      │
+│  ┌──────┴───────┐                  ┌──────────────────────┐  │
+│  │  Renderer    │──video(pipe:3)──▶│                      │  │
+│  │  node-canvas │                  │  FFmpeg Process      │  │
+│  │  720p/10fps  │                  │  h264 + AAC → RTMP   │──┼──▶ Twitch
+│  └──────────────┘                  │  (tee muxer)         │──┼──▶ YouTube
+│  ┌──────────────┐                  │                      │  │
+│  │  Audio Mixer │──audio(pipe:4)──▶│                      │  │
+│  │  BG music +  │                  └──────────────────────┘  │
+│  │  SFX triggers│                                            │
+│  └──────────────┘                                            │
+│         │                                                    │
+│  ┌──────┴───────┐                                            │
+│  │  Chat Clients │                                           │
+│  │  tmi.js (Tw)  │◀──── Twitch IRC                          │
+│  │  YT Live API  │◀──── YouTube Chat (polling)               │
+│  └──────────────┘                                            │
+└──────────────────────────────────────────────────────────────┘
          │
          │ HTTP (score updates)
          ▼
-┌─────────────────────────────────────────────────────┐
-│  Cloudflare Edge                                    │
-│  ┌──────────────┐    ┌─────────────┐                │
-│  │  Worker API   │──▶│  D1 (SQLite) │               │
-│  │  /leaderboard │   │  players     │               │
-│  │  /scores      │   │  game_results│               │
-│  └──────────────┘    └─────────────┘                │
-└─────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  Cloudflare Edge                                             │
+│  ┌──────────────┐    ┌─────────────┐                         │
+│  │  Worker API   │──▶│  D1 (SQLite) │                        │
+│  │  /leaderboard │   │  players     │                        │
+│  │  /scores      │   │  game_results│                        │
+│  └──────────────┘    └─────────────┘                         │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -62,17 +67,28 @@ changes every few seconds. We don't need 30fps of complex animation. We need:
 - Updates only when game state changes (new question, new guess, timer tick)
 - Occasional transitions between game phases
 
-### Rendering Pipeline
+### Rendering + Audio Pipeline
 
 ```
-node-canvas (720p)                  FFmpeg
-─────────────────                   ──────
-Draw frame as raw RGBA    ──pipe──▶  -f rawvideo -pix_fmt rgba
-  ~2-5 frames/sec                    -s 1280x720
-  only on state change               -r 10
-                                     -c:v h264_omx (Pi) or libx264 -preset ultrafast (Docker)
-                                     -f flv rtmp://...
+node-canvas (720p)                  FFmpeg (dual-input via extra file descriptors)
+─────────────────                   ──────────────────────────────────────────────
+Draw frame as raw RGBA              -f rawvideo -pix_fmt rgba -s 1280x720 -r 10
+  → write to pipe:3       ──fd3──▶  -i pipe:3
+
+audio-mixer (Node.js)               -f s16le -ar 48000 -ac 2
+  BG music loop + SFX     ──fd4──▶  -i pipe:4
+  → write to pipe:4
+                                     -c:v h264_omx (Pi) or libx264 ultrafast (Docker)
+                                     -c:a aac -b:a 192k
+                                     -f tee "[f=flv]rtmp://twitch|[f=flv]rtmp://youtube"
 ```
+
+**Audio approach**: The `audio-mixer` npm package runs in Node.js, continuously
+outputting mixed PCM (s16le, 48kHz, stereo). Background music loops via stream
+restart (`stream.on('end', restart)`). Sound effects are piped into a separate
+mixer input on game events (correct answer, betting opens, reveal, etc.).
+Both video and audio reach FFmpeg via extra stdio file descriptors (pipe:3,
+pipe:4) — no named pipes or filesystem artifacts needed.
 
 **Key optimizations:**
 1. **Dirty-frame rendering** — only render a new frame when state changes,
@@ -152,9 +168,10 @@ unacceptable.
 |-----------|-----------|-----|
 | Runtime | **Node.js 20 LTS** | Lightweight, async I/O, good for chat + rendering |
 | Rendering | **node-canvas** (Cairo) | Server-side 2D canvas, no browser needed |
-| Video encoding | **FFmpeg** (h264_omx or libx264) | Industry standard, RTMP support |
+| Audio mixing | **audio-mixer** (npm) | Per-input volume, continuous PCM output, dynamic SFX |
+| Video+Audio encoding | **FFmpeg** (h264_omx or libx264 + AAC) | Industry standard, RTMP, tee muxer |
 | Twitch chat | **tmi.js** | Mature, anonymous read + authenticated write |
-| YouTube chat | **YouTube Live Streaming API** (polling or gRPC `streamList`) | Official API |
+| YouTube chat | **YouTube Live Streaming API** (polling) | Official API, ~5s polling interval |
 | Game engine | **Custom state machine** | Simple phases, timer-driven transitions |
 | Process manager | **Docker** with restart policy (or **PM2**) | 24/7 uptime, auto-restart |
 
@@ -239,13 +256,19 @@ brains-and-bets/
 │   ├── renderer/
 │   │   ├── stream.ts           # FFmpeg process management, frame piping
 │   │   ├── canvas.ts           # node-canvas rendering logic
-│   │   ├── scenes/             # Scene renderers for each game phase
-│   │   │   ├── lobby.ts
-│   │   │   ├── question.ts
-│   │   │   ├── betting.ts
-│   │   │   ├── reveal.ts
-│   │   │   └── scores.ts
-│   │   └── assets/             # Fonts, background images
+│   │   └── scenes/             # Scene renderers for each game phase
+│   │       ├── lobby.ts
+│   │       ├── question.ts
+│   │       ├── betting.ts
+│   │       ├── reveal.ts
+│   │       └── scores.ts
+│   ├── audio/
+│   │   ├── mixer.ts            # audio-mixer setup, BG music loop, SFX triggers
+│   │   └── sfx.ts              # Sound effect event mapping
+│   ├── assets/
+│   │   ├── fonts/              # Custom fonts for rendering
+│   │   ├── images/             # Background images, logos
+│   │   └── audio/              # Pre-converted .pcm files (BG music, SFX)
 │   ├── leaderboard/
 │   │   └── client.ts           # HTTP client for Cloudflare Worker API
 │   └── config.ts               # Environment config (stream keys, API keys)
@@ -310,7 +333,52 @@ Could run SQLite locally on the Pi, but Cloudflare D1 gives us:
 - Foundation for the v2 Jackbox-style browser game
 - Free tier is more than enough (100K reads/day, 100K writes/day on D1)
 
-### 6. 24/7 uptime strategy
+### 6. Audio pipeline
+The `audio-mixer` npm package provides per-input volume control and continuous
+PCM output. Architecture:
+
+```js
+// Background music: loops forever via stream restart
+const bgInput = mixer.input({ volume: 25 }); // 25% volume
+function loopMusic() {
+  const stream = createReadStream('background.pcm');
+  stream.pipe(bgInput, { end: false });
+  stream.on('end', loopMusic);
+}
+
+// Sound effects: triggered on game events, piped to a separate input
+const sfxInput = mixer.input({ volume: 100 });
+function playSfx(file) {
+  createReadStream(file).pipe(sfxInput, { end: false });
+}
+
+// Mixed output → FFmpeg pipe:4
+mixer.pipe(ffmpegProcess.stdio[4]);
+```
+
+Audio files must be pre-converted to raw PCM (s16le, 48kHz, stereo):
+```bash
+ffmpeg -i music.mp3 -f s16le -acodec pcm_s16le -ar 48000 -ac 2 music.pcm
+```
+
+### 7. FFmpeg dual-output command
+```bash
+ffmpeg \
+  -f rawvideo -pix_fmt rgba -video_size 1280x720 -framerate 10 \
+    -fflags nobuffer -thread_queue_size 512 -i pipe:3 \
+  -f s16le -ar 48000 -ac 2 \
+    -fflags nobuffer -analyzeduration 0 -thread_queue_size 512 -i pipe:4 \
+  -c:v libx264 -preset ultrafast -tune zerolatency -pix_fmt yuv420p \
+    -g 20 -b:v 2500k -maxrate 2500k -bufsize 5000k \
+  -c:a aac -b:a 192k -ar 44100 \
+  -map 0:v:0 -map 1:a:0 -vsync cfr -af "aresample=async=1" \
+  -f tee \
+  "[f=flv]rtmp://live.twitch.tv/app/TWITCH_KEY|[f=flv]rtmp://a.rtmp.youtube.com/live2/YT_KEY"
+```
+
+On Pi 3B, replace `-c:v libx264 -preset ultrafast` with `-c:v h264_omx`.
+
+### 8. 24/7 uptime strategy
 - **Docker**: `restart: always` policy. Container includes Node.js + FFmpeg.
 - **Pi bare-metal**: PM2 with `--restart-delay 5000` and `--max-restarts 100`.
 - **Stream reconnection**: If RTMP connection drops, FFmpeg process restarts
@@ -320,60 +388,70 @@ Could run SQLite locally on the Pi, but Cloudflare D1 gives us:
 
 ---
 
-## Open Questions / Things to Decide
+## Confirmed Decisions
 
-1. **Simultaneous multi-platform streaming?**
-   FFmpeg's `tee` muxer can output to both Twitch and YouTube RTMP endpoints
-   from a single encode. Worth doing from day 1? Or start with one platform?
+1. **Both platforms from day 1.** Twitch + YouTube simultaneously using
+   FFmpeg's `tee` muxer. Single encode, dual RTMP output.
 
-2. **Question sourcing**:
-   - Static JSON files (what we have now)?
-   - API-based (trivia APIs)?
-   - AI-generated questions?
-   - Community-submitted?
+2. **Audio is a must.** Background music loop + sound effects for game events
+   (betting opens, answer reveal, correct/wrong, game over). Mixed in Node.js
+   via `audio-mixer` and piped to FFmpeg alongside video frames.
 
-3. **New player onboarding**:
-   Starting chips? How many? Reset per game or persistent?
-   If persistent, what happens when someone hits 0?
+3. **Reuse existing JSON question files.** The repo has ~590+ questions across
+   6 categories (general, halloween, christmas, thanksgiving, carlson, howarth).
+   Format: `[question, answer]` or `[question, answer, explanation]`.
+   More will be generated later.
 
-4. **Anti-cheat / rate limiting**:
-   - One guess per player per round
-   - Cooldown on commands
-   - Ignore bot accounts?
+4. **Chips reset per game, but convert to leaderboard points.**
+   - Every player starts each game with a fixed chip count (e.g. 100 chips)
+   - At game end, final chip count is converted to leaderboard points
+   - Conversion formula TBD (could be: `points = final_chips - starting_chips`,
+     so only net winnings matter; or `points = final_chips` raw)
+   - Leaderboard tracks cumulative points across all games
 
-5. **Audio**:
-   - Background music? (Adds complexity — FFmpeg audio mixing)
-   - Sound effects for reveals?
-   - Start silent (video-only) for simplicity?
+5. **Anti-cheat / rate limiting:**
+   - One guess per player per round (first guess counts)
+   - One bet command per player per round (or two bets max like original game)
+   - Basic rate limiting on all commands
+   - Ignore known bot accounts
 
-6. **v2 Jackbox-style browser play**:
-   - Could reuse the same Cloudflare Worker as a signaling server
-   - Players connect via browser, see their own UI
-   - Stream still shows the "big screen" view
-   - WebSocket or Server-Sent Events for real-time updates
+## Remaining Open Questions
+
+1. **Starting chip count** — 100? 1000? Higher feels more fun for betting.
+2. **Chip → leaderboard conversion** — net winnings only, or total chips?
+3. **What happens if no one joins a round?** — Skip? Show fun fact? Idle screen?
+4. **Music licensing** — need royalty-free background music and SFX.
+   Could use CC0/public domain tracks or generate with AI.
 
 ---
 
 ## Implementation Priority
 
 ### Phase 1: Core Loop (MVP)
-- [ ] Project scaffolding (TypeScript, build config)
+- [ ] Project scaffolding (TypeScript, Node.js, build config — replace Vite/React)
 - [ ] Game state machine (phases, timers, transitions)
-- [ ] Question loader from JSON files
-- [ ] Twitch chat integration (tmi.js) — read guesses + bets
-- [ ] Basic renderer (node-canvas → FFmpeg → RTMP)
+- [ ] Question loader from existing JSON files
+- [ ] Chat integration — Twitch (tmi.js) + YouTube (Live Chat API) with unified ChatManager
+- [ ] Chat command parser (!guess, !bet, !join, !score, !top, !help)
+- [ ] Video renderer (node-canvas → pipe:3 → FFmpeg) with scenes per phase
+- [ ] Audio pipeline (audio-mixer → pipe:4 → FFmpeg) with BG music + SFX
+- [ ] FFmpeg process manager (tee muxer → Twitch + YouTube RTMP)
 - [ ] K-means answer bucketing + payout calculation
+- [ ] Per-game chip system (start with N chips, bet/win/lose)
 - [ ] Dockerfile for deployment
 
-### Phase 2: Polish & Persistence
-- [ ] Cloudflare Worker + D1 leaderboard
-- [ ] YouTube chat integration
-- [ ] Better visual design (backgrounds, fonts, colors)
-- [ ] Score persistence across games
-- [ ] Multi-platform streaming (tee muxer)
+### Phase 2: Persistence & Polish
+- [ ] Cloudflare Worker + D1 leaderboard API
+- [ ] End-of-game chip → leaderboard point conversion + HTTP submission
+- [ ] Leaderboard display on stream (lobby phase)
+- [ ] Visual polish (backgrounds, fonts, animations, transitions)
+- [ ] Sound design (find/create royalty-free BG music + SFX pack)
+- [ ] Reconnection / watchdog for 24/7 uptime
+- [ ] Player stats API endpoint
 
 ### Phase 3: v2 — Browser Play (Jackbox-style)
-- [ ] WebSocket server for browser clients
+- [ ] WebSocket server for browser clients (possibly via Cloudflare Durable Objects)
 - [ ] Player web UI (phone-friendly)
 - [ ] Room codes / join flow
 - [ ] Stream view vs. player view separation
+- [ ] Hybrid mode: chat players + browser players in the same game
