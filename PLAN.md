@@ -402,11 +402,27 @@ On Pi 3B, replace `-c:v libx264 -preset ultrafast` with `-c:v h264_omx`.
    Format: `[question, answer]` or `[question, answer, explanation]`.
    More will be generated later.
 
-4. **Chips reset per game, but convert to leaderboard points.**
-   - Every player starts each game with a fixed chip count (e.g. 100 chips)
-   - At game end, final chip count is converted to leaderboard points
-   - Conversion formula TBD (could be: `points = final_chips - starting_chips`,
-     so only net winnings matter; or `points = final_chips` raw)
+4. **Chips reset per game. 3 starting chips. Percentile-based leaderboard payout.**
+   - Every player starts each game with **3 chips**
+   - Low chip count = every bet is high-stakes and meaningful
+   - Bet sizing: 1, 2, or all 3 on a single bucket, or split (e.g. 1 + 2)
+   - At game end, players are ranked by chip count
+   - Leaderboard points awarded by **percentile tier**:
+
+   | Finish Percentile | Leaderboard Points |
+   |-------------------|--------------------|
+   | Top 1%            | 100                |
+   | Top 2%            | 75                 |
+   | Top 3%            | 60                 |
+   | Top 5%            | 50                 |
+   | Top 10%           | 35                 |
+   | Top 25%           | 20                 |
+   | Top 50%           | 10                 |
+   | Top 75%           | 5                  |
+   | Below 75%         | 1 (participation)  |
+
+   - Ties: all tied players receive the best tier they qualify for
+   - Minimum players for a game to count: 3 (below that, no points awarded)
    - Leaderboard tracks cumulative points across all games
 
 5. **Anti-cheat / rate limiting:**
@@ -417,11 +433,11 @@ On Pi 3B, replace `-c:v libx264 -preset ultrafast` with `-c:v h264_omx`.
 
 ## Remaining Open Questions
 
-1. **Starting chip count** — 100? 1000? Higher feels more fun for betting.
-2. **Chip → leaderboard conversion** — net winnings only, or total chips?
-3. **What happens if no one joins a round?** — Skip? Show fun fact? Idle screen?
-4. **Music licensing** — need royalty-free background music and SFX.
+1. **What happens if no one joins a round?** — Skip? Show fun fact? Idle screen?
+2. **Music licensing** — need royalty-free background music and SFX.
    Could use CC0/public domain tracks or generate with AI.
+3. **Payout multipliers per bucket** — keep the original Wits & Wagers style
+   (2:1 to 6:1 based on bucket position) or simplify?
 
 ---
 
