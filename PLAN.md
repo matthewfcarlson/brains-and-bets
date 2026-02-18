@@ -2,7 +2,7 @@
 
 ## Vision
 
-A 24/7 live-streamed "Wits & Wagers" trivia game running on a Raspberry Pi 3B
+A 24/7 live-streamed "Wits & Wagers" trivia game running on a Raspberry Pi 4
 (or headless Docker container). Viewers on Twitch/YouTube interact via chat
 commands to submit guesses, place bets, and climb a persistent leaderboard.
 
@@ -12,7 +12,7 @@ commands to submit guesses, place bets, and climb a persistent leaderboard.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  Raspberry Pi 3B / Docker Container                          │
+│  Raspberry Pi 4 / Docker Container                          │
 │                                                              │
 │  ┌──────────────┐                                            │
 │  │  Game Engine  │  (state machine, timers, player mgmt)     │
@@ -50,12 +50,12 @@ commands to submit guesses, place bets, and climb a persistent leaderboard.
 
 ---
 
-## The Hard Problem: Rendering on a Pi 3B
+## The Hard Problem: Rendering on a Pi 4
 
 ### Constraints
-- **CPU**: ARM Cortex-A53 quad-core @ 1.2 GHz
-- **RAM**: 1 GB
-- **GPU**: VideoCore IV (has H.264 hardware encoder via `h264_omx`)
+- **CPU**: ARM Cortex-A72 quad-core @ 1.5 GHz
+- **RAM**: 2/4/8 GB (depending on model)
+- **GPU**: VideoCore VI (has H.264 hardware encoder via `h264_v4l2m2m`)
 - **No display** needed — headless operation
 
 ### Why This Actually Works for a Trivia Game
@@ -78,7 +78,7 @@ Draw frame as raw RGBA              -f rawvideo -pix_fmt rgba -s 1280x720 -r 10
 audio-mixer (Node.js)               -f s16le -ar 48000 -ac 2
   BG music loop + SFX     ──fd4──▶  -i pipe:4
   → write to pipe:4
-                                     -c:v h264_omx (Pi) or libx264 ultrafast (Docker)
+                                     -c:v h264_v4l2m2m (Pi) or libx264 ultrafast (Docker)
                                      -c:a aac -b:a 192k
                                      -f tee "[f=flv]rtmp://twitch|[f=flv]rtmp://youtube"
 ```
@@ -94,9 +94,9 @@ pipe:4) — no named pipes or filesystem artifacts needed.
 1. **Dirty-frame rendering** — only render a new frame when state changes,
    otherwise re-send the last frame. Most of the time the screen is static.
 2. **Low frame rate** — 10 fps is fine for text-based content. Could even go
-   to 5 fps for the Pi 3B.
+   to 5 fps for the Pi 4.
 3. **720p resolution** — 1280x720 is the sweet spot for readability vs. cost.
-4. **Hardware encoder on Pi** — `h264_omx` offloads encoding to the GPU,
+4. **Hardware encoder on Pi** — `h264_v4l2m2m` offloads encoding to the GPU,
    dropping CPU load from ~100% to ~10%.
 5. **Docker fallback** — `libx264 -preset ultrafast` at 720p/10fps is
    manageable even on modest x86 hardware.
@@ -169,7 +169,7 @@ unacceptable.
 | Runtime | **Node.js 20 LTS** | Lightweight, async I/O, good for chat + rendering |
 | Rendering | **node-canvas** (Cairo) | Server-side 2D canvas, no browser needed |
 | Audio mixing | **audio-mixer** (npm) | Per-input volume, continuous PCM output, dynamic SFX |
-| Video+Audio encoding | **FFmpeg** (h264_omx or libx264 + AAC) | Industry standard, RTMP, tee muxer |
+| Video+Audio encoding | **FFmpeg** (h264_v4l2m2m or libx264 + AAC) | Industry standard, RTMP, tee muxer |
 | Twitch chat | **tmi.js** | Mature, anonymous read + authenticated write |
 | YouTube chat | **YouTube Live Streaming API** (polling) | Official API, ~5s polling interval |
 | Game engine | **Custom state machine** | Simple phases, timer-driven transitions |
@@ -302,7 +302,7 @@ brains-and-bets/
 ## Key Technical Decisions & Trade-offs
 
 ### 1. Frame Rate: 5-10 fps
-For a text-heavy trivia game, 10fps is smooth enough. On the Pi 3B with
+For a text-heavy trivia game, 10fps is smooth enough. On the Pi 4 with
 hardware encoding, this should be comfortable. We can drop to 5fps if needed.
 The stream will look fine — most of the "content" is static between state
 changes.
@@ -316,7 +316,7 @@ half the rendering and encoding work.
   Compilation on ARM can be finicky but doable. This is the pragmatic choice.
 - **Skia (via @napi-rs/canvas)**: Faster but less mature, bigger binary.
 - **FFmpeg drawtext**: Ultra-light but can't do layouts/tables/graphics.
-- **Headless browser (Puppeteer)**: Way too heavy for a Pi 3B.
+- **Headless browser (Puppeteer)**: Way too heavy for a Pi 4.
 
 **Decision**: Start with node-canvas. It's the best balance of flexibility and
 resource usage for this use case.
@@ -376,7 +376,7 @@ ffmpeg \
   "[f=flv]rtmp://live.twitch.tv/app/TWITCH_KEY|[f=flv]rtmp://a.rtmp.youtube.com/live2/YT_KEY"
 ```
 
-On Pi 3B, replace `-c:v libx264 -preset ultrafast` with `-c:v h264_omx`.
+On Pi 4, replace `-c:v libx264 -preset ultrafast` with `-c:v h264_v4l2m2m`.
 
 ### 8. 24/7 uptime strategy
 - **Docker**: `restart: always` policy. Container includes Node.js + FFmpeg.
