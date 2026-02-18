@@ -431,13 +431,19 @@ On Pi 3B, replace `-c:v libx264 -preset ultrafast` with `-c:v h264_omx`.
    - Basic rate limiting on all commands
    - Ignore known bot accounts
 
+6. **Music assets** — user will source and upload royalty-free BG music + SFX
+   to the repo. Code just needs to load from `src/assets/audio/`.
+
+7. **Idle behavior (no players)** — Show a "How to Play" tutorial screen
+   explaining the commands and game flow. Could also run demo rounds with
+   simple bots to show the game in action and attract viewers to participate.
+
 ## Remaining Open Questions
 
-1. **What happens if no one joins a round?** — Skip? Show fun fact? Idle screen?
-2. **Music licensing** — need royalty-free background music and SFX.
-   Could use CC0/public domain tracks or generate with AI.
-3. **Payout multipliers per bucket** — keep the original Wits & Wagers style
+1. **Payout multipliers per bucket** — keep the original Wits & Wagers style
    (2:1 to 6:1 based on bucket position) or simplify?
+2. **Bot behavior during idle** — simple random guesses, or more
+   "entertaining" personality bots with funny names?
 
 ---
 
