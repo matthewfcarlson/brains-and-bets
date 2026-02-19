@@ -4,3 +4,4 @@ node_modules/
 .vite/
 .wrangler/
 .DS_Store
+coverage/
